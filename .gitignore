@@ -1,0 +1,11 @@
+# Ignore build directory
+/build/
+
+# Ignore object files
+*.o
+
+# Ignore editor swap files
+*.swp
+
+# Ignore Mac system files
+.DS_Store
