@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Include the include/ directory
-include_directories(include)
+include_directories(include/ATC-FS25)
 
 # Add the executable
 #add_executable(my_cpp_executable src/main.cpp)
