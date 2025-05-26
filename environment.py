@@ -80,7 +80,6 @@ class line_map () :
 
     def print_map_and_agents(self, agent_list : List[NDArray] = []):
         plt.figure()
-        print("Plotting all nodes and connections:")
         # Plot all nodes
         xs = [node.x for node in self.nodes]
         ys = [node.y for node in self.nodes]
@@ -97,7 +96,7 @@ class line_map () :
     
         plt.xlabel('X')
         plt.ylabel('Y')
-        plt.title('Map with Nodes and Connections')
+        plt.title('Map with Nodes and Connections and Agents')
         plt.legend()
         plt.grid(True)
         plt.show()

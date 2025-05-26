@@ -2,7 +2,7 @@ from environment import line_map, node
 from typing import List, Tuple
 import numpy as np
 from numpy.typing import NDArray
-from physics import physics_object, quaternion
+from physics import physics_object, quaternion, frames
 
 class agent(physics_object) :
     name : str
@@ -36,10 +36,10 @@ class agent(physics_object) :
         self.personal_map.add_node(self.closest_node)
 
     def __str__ (self):
-        return f"Agent \"{self.name}\" at \nx: {self.x}\ny: {self.y}\nz: {self.z}\norientation: {self.orientation}\n"
+        return f"Agent \"{self.name}\" at \nx: {self.W_p_COM[0]}\ny: {self.W_p_COM[1]}\nz: {self.W_p_COM[2]}\norientation: {self.W_q_B.value}\n"
 
     def update(self):
-        self.physics_step()
+        self.physics_step(forces=np.array([[1, 0, 0]]), frame= frames.B)
 
 
 
