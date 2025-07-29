@@ -12,7 +12,7 @@ class default_vals:
     # Simulation
     num_agents : int = 1
     map : str = "loss"
-    max_time : float = 5.0
+    max_time : float = 20.0
 
     # Animation
     draw_trajectories : bool = True
@@ -35,7 +35,7 @@ def run (num_agents : int, max_time : float, map : line_map):
     step : int = 1
     while(step <= max_time_steps):
         for i, agents in enumerate(agents_list):
-            agents.update(agents.find_input(np.array([-1,0]), verbose=False))
+            agents.update(agents.find_input(agents.target_node.to_numpy(), verbose=False))
             print(agents)
             save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
 

@@ -60,9 +60,11 @@ class agent(physics_object) :
         # Positioning
         self.W_p_COM = np.vstack([position.reshape((2,1)), np.zeros((2,1))])
         self.closest_node, _ = global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
-        self.target_node = self.closest_node
         self.personal_map.add_node(self.closest_node)
-        self.UNvisited_nodes.append(self.global_map.nodes(idx) for idx in self.closest_node.connectivity)
+        for idx in self.closest_node.connectivity:
+            self.UNvisited_nodes.append(self.global_map.nodes[idx])
+        print(f"to be removed: {self.UNvisited_nodes}")
+        self.target_node = self.find_best_target_node()
         
         # LTI Model
         A_c = np.block([[np.zeros((2,2)),np.eye(2)],[K/mass,D/mass]])
@@ -96,12 +98,12 @@ class agent(physics_object) :
         return self.UNvisited_nodes[0]
 
     def update(self, force : NDArray = np.zeros((2,1))):
-        assert force, "No desired input specified" # CVXPY gives None if there was no solution to opt problem
+        assert force is not None, "No desired input specified" # CVXPY gives None if there was no solution to opt problem
         self.physics_step(force=force)
         assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"
 
         last_node = self.closest_node
-        self.closest_node = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
+        self.closest_node, distance = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
 
         if last_node == self.closest_node:
             pass
@@ -109,15 +111,17 @@ class agent(physics_object) :
             if self.closest_node in self.UNvisited_nodes:
                 self.UNvisited_nodes.remove(self.closest_node)
                 for idx in self.closest_node.connectivity:
-                    self.UNvisited_nodes.insert(0,self.global_map.nodes[idx])
+                    if self.global_map.nodes[idx] not in self.personal_map.nodes:
+                        self.UNvisited_nodes.insert(0,self.global_map.nodes[idx])
             elif self.closest_node in self.personal_map.nodes:
                 pass
             else:
                 raise Exception(f"Node without connectivity found: {last_node} -> {self.closest_node}\n{self.personal_map.print_map()}")
             
-        if self.closest_node == self.target_node:
-            # print(f"Agent {self.name} has reached the target node {self.closest_node}")
-            self.target_node = self.find_best_target_node()
+        if self.closest_node == self.target_node and distance <= 0.1:
+            if len(self.UNvisited_nodes) > 0:
+                self.target_node = self.find_best_target_node()
+            print(f"Agent {self.name} has reached the target node {self.closest_node}, now targetting {self.target_node}")
                 
 
     def find_input(self, reference: NDArray = np.zeros((2,)), verbose: bool = False) -> NDArray:
@@ -142,6 +146,6 @@ class agent(physics_object) :
         result = problem.solve(verbose=verbose)
         self.score = problem.value
 
-        print(f"Found input is {u[0].value}, which should lead to {x[N].value} in the future\n")
-        print(f"Expected Trajectory:\n{x[:].value}")
+        # print(f"Found input is {u[0].value}, which should lead to {x[N].value} in the future\n")
+        # print(f"Expected Trajectory:\n{x[:].value}")
         return np.array(u[0].value)

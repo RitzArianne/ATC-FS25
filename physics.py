@@ -50,4 +50,3 @@ class physics_object ():
         assert force.size == 2, f"invalid for {force}"
         force = force.reshape((2,1))
         self.W_p_COM = self.A @ self.W_p_COM + self.B @ force
-        assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"

@@ -16,10 +16,13 @@ class node () :
         self.y = y
 
     def __str__(self):
-        return self.name
+        return f"{self.name}(idx: {self.node_idx})"
 
     def change_name(self, new_name : str) :
         self.name = new_name
+
+    def to_numpy(self) -> NDArray:
+        return np.array([self.x, self.y])
 
 class line_map () :
     nodes : list[node] = []
