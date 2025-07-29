@@ -23,7 +23,6 @@ class line_map () :
     nodes : list[node] = []
     connections : List[Tuple[int, int]] = []
     bounds : Tuple[Tuple[int,int]]
-    
 
     def add_node(self, new_node : node) :
         # TODO: add minimum di
@@ -66,7 +65,8 @@ class line_map () :
             if distance < best_distance:
                 best_distance = distance
                 best_node = candidate
-        
+
+        assert best_node, "Somehow no nodes were found in map??"
         return (best_node, best_distance)
     
     def update_node_number_and_connections (self):
