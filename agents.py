@@ -2,7 +2,7 @@ from environment import line_map, node
 from typing import List, Tuple
 import numpy as np
 from numpy.typing import NDArray
-from physics import physics_object, frames, constants
+from physics import physics_object, constants
 import cvxpy as opt
 from scipy.linalg import solve_discrete_are, expm
 
@@ -15,7 +15,7 @@ class agent_parameters():
     input_actuation_limit: float = 1e1
 
     # Default Values
-    default_name: str = "Unnamed"
+    default_name: str = "Unnamed Agent"
     default_mass: float= 1
     default_diameter: float = 0.0
 
@@ -33,7 +33,6 @@ class agent(physics_object) :
     # Positioning
     closest_node : node
     target_node : node 
-    visited_nodes : List[node] = []
     UNvisited_nodes : List[node] = []
 
     def __init__ (
@@ -90,11 +89,36 @@ class agent(physics_object) :
         """
         return self.W_p_COM, self.score
     
-    def find_best_node(self, adverts : NDArray = np.zeros((0,0))) -> node:
+    def find_best_target_node(self, adverts : NDArray = np.zeros((0,0))) -> node:
+        """
+        Graphsearch for the node that has the smallest sum of distance to current node and all agent scores divided by the distnace form this agent to them
+        """
         return self.UNvisited_nodes[0]
 
     def update(self, force : NDArray = np.zeros((2,1))):
+        assert force, "No desired input specified" # CVXPY gives None if there was no solution to opt problem
         self.physics_step(force=force)
+        assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"
+
+        last_node = self.closest_node
+        self.closest_node = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
+
+        if last_node == self.closest_node:
+            pass
+        else:
+            if self.closest_node in self.UNvisited_nodes:
+                self.UNvisited_nodes.remove(self.closest_node)
+                for idx in self.closest_node.connectivity:
+                    self.UNvisited_nodes.insert(0,self.global_map.nodes[idx])
+            elif self.closest_node in self.personal_map.nodes:
+                pass
+            else:
+                raise Exception(f"Node without connectivity found: {last_node} -> {self.closest_node}\n{self.personal_map.print_map()}")
+            
+        if self.closest_node == self.target_node:
+            # print(f"Agent {self.name} has reached the target node {self.closest_node}")
+            self.target_node = self.find_best_target_node()
+                
 
     def find_input(self, reference: NDArray = np.zeros((2,)), verbose: bool = False) -> NDArray:
         N = self.max_calc_steps

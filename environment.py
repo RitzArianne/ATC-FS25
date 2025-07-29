@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 class node () :
     x : float = 0
     y : float = 0
-    name : str = "No Name"
+    name : str = "Unnamed Node"
     node_idx : int
     connectivity : List[int] = []
 
@@ -15,9 +15,11 @@ class node () :
         self.x = x
         self.y = y
 
+    def __str__(self):
+        return self.name
+
     def change_name(self, new_name : str) :
         self.name = new_name
-
 
 class line_map () :
     nodes : list[node] = []
@@ -34,6 +36,16 @@ class line_map () :
             self.connections.append((node_1, node_2))
         else:
             print(f"Problem adding [{node_1}, {node_2}] to connections when highest idx node is {len(self.nodes) - 1}")
+
+    """ # was found to be unecessary, kept temporarily
+    def give_all_connections(self, node_idx) -> List[node]:
+        found_nodes = []
+        for connection in self.connections:
+            if node_idx in connection:
+                node_1, node_2 = connection
+                found_nodes.append(self.nodes[node_1 if node_1 != node_idx else node_2])
+        return found_nodes
+    """
 
     def print_map(self):
         plt.figure()
