@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from physics import physics_object, constants
 import cvxpy as opt
+import dccp
 from scipy.linalg import solve_discrete_are, expm
 
 class agent_parameters():
@@ -13,6 +14,7 @@ class agent_parameters():
     state_weight: float = 1e1
     input_weight: float = 1e0
     input_actuation_limit: float = 5e0
+    minimum_hallway_width: float = 0.2
 
     # Default Values
     default_name: str = "Unnamed Agent"
@@ -59,9 +61,9 @@ class agent(physics_object) :
 
         # Positioning
         self.W_p_COM = np.vstack([position.reshape((2,1)), np.zeros((2,1))])
-        self.closest_node, _ = global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
-        self.personal_map.add_node(self.closest_node)
-        for idx in self.closest_node.connectivity:
+        self.current_node, _ = global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
+        self.personal_map.add_node(self.current_node)
+        for idx in self.current_node.connectivity:
             self.UNvisited_nodes.append(self.global_map.nodes[idx])
         self.target_node = self.find_best_target_node()
         
@@ -97,42 +99,48 @@ class agent(physics_object) :
         return self.UNvisited_nodes[0]
 
     def update(self, force : NDArray = np.zeros((2,1))):
-        assert force is not None, "No desired input specified" # CVXPY gives None if there was no solution to opt problem
         self.physics_step(force=force)
         assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"
 
-        last_node = self.closest_node
-        self.closest_node, distance = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
+        last_node = self.current_node
+        closest_node, distance = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
 
-        if last_node == self.closest_node:
-            pass
-        else:
-            # print(f"agent {self} has reached a new node {last_node} -> {self.closest_node}")
-            if self.closest_node in self.UNvisited_nodes:
-                # print(f"the node has not been descovered yet! {self.closest_node} in {[item.__str__() for item in self.UNvisited_nodes]}\n{self.closest_node} NOT in {[item.__str__() for item in self.personal_map.nodes]}")
-                self.UNvisited_nodes.remove(self.closest_node)
-                # print(f"node has been removed -> {self.closest_node} NOT in {[item.__str__() for item in self.UNvisited_nodes]}")
-                self.personal_map.add_node(self.closest_node)
-                # print(f"{self.closest_node} now in {[item.__str__() for item in self.personal_map.nodes]}")
-                for idx in self.closest_node.connectivity:
+        if distance <= agent_parameters.minimum_hallway_width:
+            self.current_node = closest_node
+            print(f"agent {self} has reached a new node {last_node} -> {self.current_node}")
+            if self.current_node in self.UNvisited_nodes:
+                self.UNvisited_nodes.remove(self.current_node)
+                self.personal_map.add_node(self.current_node)
+                self.personal_map.add_connection(last_node.node_idx, self.current_node.node_idx)
+                for idx in self.current_node.connectivity:
                     if self.global_map.nodes[idx] not in self.personal_map.nodes:
                         self.UNvisited_nodes.insert(0,self.global_map.nodes[idx])
-                # print(f"Confirm: none of {[item for item in self.closest_node.connectivity]} that are in {[item.__str__() for item in self.UNvisited_nodes]} are also in {[item.__str__() for item in self.personal_map.nodes]}")
-            elif self.closest_node in self.personal_map.nodes:
+            elif self.current_node in self.personal_map.nodes:
                 pass
             else:
-                raise Exception(f"Node without connectivity found: {last_node} -> {self.closest_node}\n{self.personal_map.print_map()}")
+                raise Exception(f"Node without connectivity found: {last_node} -> {self.current_node}\n{self.personal_map.print_map()}")
             
-        if self.closest_node == self.target_node and distance <= 0.1:
-            if len(self.UNvisited_nodes) > 0:
-                self.target_node = self.find_best_target_node()
-            print(f"Agent {self.name} has reached the target node {self.closest_node}, now targetting {self.target_node}")
+            if self.current_node == self.target_node:
+                if len(self.UNvisited_nodes) > 0:
+                    self.target_node = self.find_best_target_node()
+                print(f"Agent {self.name} has reached the target node {self.current_node}, now targetting {self.target_node}")
+
+    def find_first_intermediate_target(self) -> node:
+        return self.global_map.nodes[self.personal_map.astar(self.current_node.node_idx, self.target_node.node_idx)[0]] # Can cause error if no path is found (empty list returned)
                 
+    def get_all_line_segments(self) -> List[Tuple[Tuple[float, float],Tuple[float, float]]]:
+        all_connections = self.personal_map.give_all_connections() #WARKING trying without self.UNvisited because it might be superfluous
+        line_segments: List[Tuple[Tuple[float, float],Tuple[float, float]]] = []
+        for idx_a, idx_b in all_connections:
+            node_a = self.global_map.nodes[idx_a]
+            node_b = self.global_map.nodes[idx_b]
+            line_segments.append(((node_a.x, node_a.y), (node_b.x, node_b.y)))
+        return line_segments
 
     def find_input(self, reference: NDArray = np.zeros((2,)), verbose: bool = False) -> NDArray:
         N = self.max_calc_steps
-        x = opt.Variable((N+1,4))
-        u = opt.Variable((N,2))
+        x = opt.Variable((N+1,4), name= "state")
+        u = opt.Variable((N,2), name = "input")
         r = np.vstack((reference.reshape((2,1)), np.zeros((2,1)))).reshape((4,))
 
         objective = opt.Minimize(
@@ -146,10 +154,19 @@ class agent(physics_object) :
         constraints.extend([x[i+1] == self.A @ x[i] + self.B @ u[i] for i in range(N)])
         constraints.extend([opt.norm2(u[i]) <= agent_parameters.input_actuation_limit for i in range (N)])
 
-        problem = opt.Problem(objective, constraints)
-        
-        result = problem.solve(verbose=verbose)
-        self.score = problem.value
+        # Constraint to be certain distance from current line segment
+        for i in range(N+1):
+            pos = x[i, :2]  # agent position
+            t = opt.Variable(name= f"Line variable")
+            x1, y1, x2, y2 = self.current_node.x, self.current_node.y, reference[0], reference[1]
+            xt = (1 - t) * x1 + t * x2
+            yt = (1 - t) * y1 + t * y2
+            proj = opt.hstack([xt, yt])
+            constraints += [opt.norm(pos - proj) <= agent_parameters.minimum_hallway_width, t >= 0, t <= 1]
+
+        prob = opt.Problem(objective, constraints)
+        result = prob.solve(verbose=not verbose)
+        self.score = prob.value
 
         # print(f"Found input is {u[0].value}, which should lead to {x[N].value} in the future\n")
         # print(f"Expected Trajectory:\n{x[:].value}")

@@ -13,11 +13,12 @@ class default_vals:
     num_agents : int = 1
     map : str = "loss"
     max_time : float = 20.0
+    print_solver_feedback: bool = False
 
     # Animation
     draw_trajectories : bool = True
 
-def run (num_agents : int, max_time : float, map : line_map):
+def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
     """
     TODO: define geometries
     TODO: anyting casadi/cvxpy
@@ -35,9 +36,16 @@ def run (num_agents : int, max_time : float, map : line_map):
     step : int = 1
     while(step <= max_time_steps):
         for i, agents in enumerate(agents_list):
-            agents.update(agents.find_input(agents.target_node.to_numpy(), verbose=False))
+            try:
+                agents.update(agents.find_input(agents.find_first_intermediate_target().to_numpy(), verbose=verbose))
+                save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
             #print(agents)
-            save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
+            except Exception as e:
+
+                agents.physics_step() # Maybe this helps seeing what went wrong
+                save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
+                np.save("np_saves/last_run", save_data)
+                raise AssertionError(f"ran into {e}")
 
         #map.print_map_and_agents([agent_i.W_p_COM for agent_i in agents_list])
 
@@ -50,10 +58,11 @@ def run (num_agents : int, max_time : float, map : line_map):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-n", "--num_agents", type = int,   default= default_vals.num_agents,        help= "number of indipendant agents/drones/robots in the simulation")
-    #parser.add_argument("-d", "--draw_traj", type= bool,   default= default_vals.draw_trajectories, help= "True: singular image with trajectories, False: video")
-    parser.add_argument("-m", "--map",        type = str,   default=default_vals.map,                help= "select from: loss")
-    parser.add_argument("-t", "--max_time",   type = float, default= default_vals.max_time,          help= "set simulation end time")
+    parser.add_argument("-n",   "--num_agents", type = int,     default= default_vals.num_agents,           help= "number of indipendant agents/drones/robots in the simulation")
+    #parser.add_argument("-d",  "--draw_traj",  type= bool,     default= default_vals.draw_trajectories,    help= "True: singular image with trajectories, False: video")
+    parser.add_argument("-m",   "--map",        type = str,     default=default_vals.map,                   help= "select from: loss")
+    parser.add_argument("-t",   "--max_time",   type = float,   default= default_vals.max_time,             help= "set simulation end time")
+    parser.add_argument("-v",   "--verbose",    type = bool,    default= default_vals.print_solver_feedback,help= "set simulation end time")
 
 
     args = parser.parse_args()
@@ -62,12 +71,11 @@ if __name__ == "__main__":
         case "loss":
             simulated_map = loss_map()
             #simulated_map.print_map()
-            print([item for item in simulated_map.connections])
         case _:
             print(f"Not Found: You entered {args.map}")
             simulated_map = loss_map()
 
-    run(num_agents= args.num_agents, max_time= args.max_time, map= simulated_map)
+    run(num_agents= args.num_agents, max_time= args.max_time, map= simulated_map, verbose=args.verbose)
 
     print("DONE")
 

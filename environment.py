@@ -1,8 +1,8 @@
 from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
-from copy import copy
 from numpy.typing import NDArray
+import heapq
 
 class node () :
     x : float = 0
@@ -43,16 +43,6 @@ class line_map () :
             self.connections.append((node_1, node_2))
         else:
             print(f"Problem adding [{node_1}, {node_2}] to connections when highest idx node is {len(self.nodes) - 1}")
-
-    """ # was found to be unecessary, kept temporarily
-    def give_all_connections(self, node_idx) -> List[node]:
-        found_nodes = []
-        for connection in self.connections:
-            if node_idx in connection:
-                node_1, node_2 = connection
-                found_nodes.append(self.nodes[node_1 if node_1 != node_idx else node_2])
-        return found_nodes
-    """
 
     def print_map(self):
         plt.figure()
@@ -119,8 +109,69 @@ class line_map () :
         plt.legend()
         plt.grid(True)
         plt.show()
-        
 
+    @staticmethod
+    def find_uniques(conn_list: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        unique_connections = set()
+        for a, b in conn_list:
+            normalized = tuple(sorted((a, b)))  # ensures (a, b) == (b, a)
+            unique_connections.add(normalized)
+        return list(unique_connections)
+
+    def give_all_connections(self, unvisited_nodes: list[node] = []) -> List[Tuple[int, int]]:
+        all_nodes: List[node] = self.nodes + unvisited_nodes
+        all_connections: List[Tuple[int, int]] = []
+        for nodes in all_nodes:
+            for neighbor_idx in nodes.connectivity:
+                all_connections.append(tuple([nodes.node_idx,neighbor_idx]))
+        unique_connections = self.find_uniques(all_connections)
+        return unique_connections
+    
+    import heapq
+
+    def astar(self, start_idx: int, goal_idx: int) -> List[int]:
+        def heuristic(n1: node, n2: node) -> float:
+            return np.sqrt((n1.x - n2.x)**2 + (n1.y - n2.y)**2)
+
+        open_set = []
+        heapq.heappush(open_set, (0, start_idx))
+    
+        came_from = {}
+        g_score = {n.node_idx: float('inf') for n in self.nodes}
+        g_score[start_idx] = 0
+
+        f_score = {n.node_idx: float('inf') for n in self.nodes}
+        f_score[start_idx] = heuristic(self.nodes[start_idx], self.nodes[goal_idx])
+
+        open_set_hash = {start_idx}  # for quick lookup
+
+        while open_set:
+            current_f, current_idx = heapq.heappop(open_set)
+            open_set_hash.remove(current_idx)
+
+            if current_idx == goal_idx:
+                # Reconstruct path
+                path = [current_idx]
+                while current_idx in came_from:
+                    current_idx = came_from[current_idx]
+                    path.append(current_idx)
+                return path[::-1]  # reverse to get path from start to goal
+
+            current_node = self.nodes[current_idx]
+            for neighbor_idx in current_node.connectivity:
+                neighbor = self.nodes[neighbor_idx]
+                tentative_g = g_score[current_idx] + heuristic(current_node, neighbor)
+
+                if tentative_g < g_score[neighbor_idx]:
+                    came_from[neighbor_idx] = current_idx
+                    g_score[neighbor_idx] = tentative_g
+                    f_score[neighbor_idx] = tentative_g + heuristic(neighbor, self.nodes[goal_idx])
+                    if neighbor_idx not in open_set_hash:
+                        heapq.heappush(open_set, (f_score[neighbor_idx], neighbor_idx))
+                        open_set_hash.add(neighbor_idx)
+
+        # If we get here, no path was found
+        return []
 
 class loss_map(line_map):
     def __init__ (self, scale : float = 1.0):
