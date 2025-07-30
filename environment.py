@@ -25,9 +25,13 @@ class node () :
         return np.array([self.x, self.y])
 
 class line_map () :
-    nodes : list[node] = []
-    connections : List[Tuple[int, int]] = []
-    bounds : Tuple[Tuple[int,int]]
+    nodes : list[node]
+    connections : List[Tuple[int, int]]
+    bounds : Tuple[Tuple[int, int], Tuple[int, int]]
+
+    def __init__(self):
+        self.nodes = []
+        self.connections = []
 
     def add_node(self, new_node : node) :
         # TODO: add minimum di
@@ -120,6 +124,7 @@ class line_map () :
 
 class loss_map(line_map):
     def __init__ (self, scale : float = 1.0):
+        super().__init__()
         loss_node_loc = [[0,0],[0,1],[0,-1],[1.0/3,0],[1.0/3,1],[2.0/3,0],[2.0/3,1],[1,0],[1.0/3,-0.5],[1.0/3,-1],[1,-0.5],[-1.0/3,0],[-0.5,0],[-2.0/3,0],[-1,0],[-1.0/3,-1],[-0.5,1],[-2.0/3,-1]]
         loss_node_con = [[0,1],[0,2],[0,3],[3,4],[3,5],[3,8],[5,6],[5,7],[8,10],[8,9],[0,11],[11,15],[11,12],[12,16],[12,13],[13,14],[13,17]]
 
@@ -132,4 +137,77 @@ class loss_map(line_map):
         self.bounds = ((scale * 1,scale * 1), (scale *-1, scale * -1))
 
         self.update_node_number_and_connections()
+
+class maze_map(line_map):
+    def __init__(self, scale: float = 1.0):
+        super().__init__()
+
+        maze_node_locs = [
+            [0, 0], [1, 0], [2, 0], [2, 1], [1, 1], [0, 1],
+            [0, 2], [1, 2], [2, 2], [3, 2], [3, 1], [3, 0], [3, -1],
+            [2, -1], [1, -1], [0, -1], [0, -2], [1, -2], [2, -2], [2, -3],
+            [1, -3], [3, -2]
+        ]
+
+        maze_node_conns = [
+            [0,1],[1,2],[2,3],[3,4],[4,5],[5,0],
+            [5,6],[6,7],[7,8],[8,9],
+            [8,10],[10,11],[11,12],[12,13],[13,14],[14,1],
+            [14,15],[15,16],
+            [14,17],[17,18],[18,19],
+            [18,21],[21,12],
+            [20,17],
+        ]
+
+        for coords in maze_node_locs:
+            self.add_node(node(coords[0]*scale, coords[1]*scale))
+
+        for conn in maze_node_conns:
+            self.add_connection(conn[0], conn[1])
+
+        self.bounds = ((scale * 3.5, scale * 3.5), (-scale * 3.5, -scale * 3.5))
+        self.update_node_number_and_connections()
+
+class complex_maze_map(line_map):
+    def __init__(self, scale: float = 1.0):
+        super().__init__()
+
+        # 50 Node positions
+        maze_node_locs = [
+            [0, 0], [1, 0], [2, 0], [3, 0], [4, 0],                 # 0-4
+            [4, 1], [3, 1], [2, 1], [1, 1], [0, 1],                 # 5-9 (upper path)
+            [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],                 # 10-14
+            [2, 3], [3, 3], [4, 3], [1, 3], [0, 3],                 # 15-19
+            [-1, 0], [-2, 0], [-3, 0], [-3, 1], [-2, 1],            # 20-24 (left loop)
+            [-1, 1], [-1, 2], [-2, 2], [-3, 2], [-3, 3],            # 25-29
+            [-2, 3], [-1, 3], [0, 4], [1, 4], [2, 4],               # 30-34
+            [3, 4], [4, 4], [4, 5], [3, 5], [2, 5],                 # 35-39
+            [1, 5], [0, 5], [-1, 5], [-2, 5], [-3, 5],              # 40-44 (bottom left dead ends)
+            [-3, 4], [-2, 4], [-1, 4], [0, 6],                      # 45-48
+            [1, 6]                                                  # 49 (top-right exit)
+        ]
+
+        # Connections between nodes
+        maze_node_conns = [
+            [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,0],     # Outer loop
+            [9,10],[10,11],[11,12],[12,13],[13,14],[14,5],                  # Top U-turn
+            [12,15],[15,16],[16,17],[17,14],                                # Inner top loop
+            [11,18],[18,19],[19,10],                                       # Left inner branch
+            [0,20],[20,21],[21,22],[22,23],[23,24],[24,25],[25,20],        # Left-side loop
+            [25,26],[26,27],[27,28],[28,29],[29,30],[30,31],[31,25],       # Left nested loop
+            [19,32],[32,33],[33,34],[34,35],[35,36],[36,37],               # Right extension
+            [37,38],[38,39],[39,40],[40,41],[41,42],[42,43],[43,44],       # Bottom dead ends
+            [44,45],[45,46],[46,47],[47,48],[48,32],                       # Bottom loop reconnect
+            [34,49]                                                        # Final exit
+        ]
+
+        for coords in maze_node_locs:
+            self.add_node(node(coords[0]*scale, coords[1]*scale))
+
+        for conn in maze_node_conns:
+            self.add_connection(conn[0], conn[1])
+
+        self.bounds = ((scale * 5, scale * 6), (-scale * 4, -scale * 1))
+        self.update_node_number_and_connections()
+
     
