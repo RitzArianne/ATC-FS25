@@ -12,7 +12,7 @@ class default_vals:
     # Simulation
     num_agents : int = 1
     map : str = "loss"
-    max_time : float = 20.0
+    max_time : float = 60.0
     print_solver_feedback: bool = False
 
     # Animation
@@ -39,7 +39,6 @@ def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
             try:
                 agents.update(agents.find_input(agents.find_first_intermediate_target().to_numpy(), verbose=verbose))
                 save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
-            #print(agents)
             except Exception as e:
 
                 agents.physics_step() # Maybe this helps seeing what went wrong

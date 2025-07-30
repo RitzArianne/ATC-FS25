@@ -38,11 +38,9 @@ class line_map () :
         # stance requirement
         self.nodes.append(new_node)
 
-    def add_connection(self, node_1 : int, node_2 : int) :
-        if (len(self.nodes) > max(node_1, node_2) and node_1 >= 0 and node_2 >= 0):
-            self.connections.append((node_1, node_2))
-        else:
-            print(f"Problem adding [{node_1}, {node_2}] to connections when highest idx node is {len(self.nodes) - 1}")
+    def add_connection(self, idx_1 : int, idx_2 : int) :
+        assert idx_1 >= 0 and idx_2 >= 0, f"got passed negative idx: {idx_1, idx_2}"
+        self.connections.append((idx_1, idx_2))
 
     def print_map(self):
         plt.figure()
@@ -127,11 +125,17 @@ class line_map () :
         unique_connections = self.find_uniques(all_connections)
         return unique_connections
     
-    import heapq
+    def find_global_node_idx(self, idx: int) -> node:
+        for n in self.nodes:
+            if n.node_idx == idx:
+                return n
+        raise ValueError(f"Node with index {idx} not found")
 
     def astar(self, start_idx: int, goal_idx: int) -> List[int]:
         def heuristic(n1: node, n2: node) -> float:
             return np.sqrt((n1.x - n2.x)**2 + (n1.y - n2.y)**2)
+        
+        goal_node = self.find_global_node_idx(goal_idx)
 
         open_set = []
         heapq.heappush(open_set, (0, start_idx))
@@ -141,7 +145,7 @@ class line_map () :
         g_score[start_idx] = 0
 
         f_score = {n.node_idx: float('inf') for n in self.nodes}
-        f_score[start_idx] = heuristic(self.nodes[start_idx], self.nodes[goal_idx])
+        f_score[start_idx] = heuristic(self.find_global_node_idx(start_idx), goal_node)
 
         open_set_hash = {start_idx}  # for quick lookup
 
@@ -157,15 +161,15 @@ class line_map () :
                     path.append(current_idx)
                 return path[::-1]  # reverse to get path from start to goal
 
-            current_node = self.nodes[current_idx]
+            current_node: node = self.find_global_node_idx(current_idx)
             for neighbor_idx in current_node.connectivity:
-                neighbor = self.nodes[neighbor_idx]
+                neighbor = self.find_global_node_idx(neighbor_idx)
                 tentative_g = g_score[current_idx] + heuristic(current_node, neighbor)
 
                 if tentative_g < g_score[neighbor_idx]:
                     came_from[neighbor_idx] = current_idx
                     g_score[neighbor_idx] = tentative_g
-                    f_score[neighbor_idx] = tentative_g + heuristic(neighbor, self.nodes[goal_idx])
+                    f_score[neighbor_idx] = tentative_g + heuristic(neighbor, goal_node)
                     if neighbor_idx not in open_set_hash:
                         heapq.heappush(open_set, (f_score[neighbor_idx], neighbor_idx))
                         open_set_hash.add(neighbor_idx)

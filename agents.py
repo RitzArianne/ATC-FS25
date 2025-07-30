@@ -4,7 +4,6 @@ import numpy as np
 from numpy.typing import NDArray
 from physics import physics_object, constants
 import cvxpy as opt
-import dccp
 from scipy.linalg import solve_discrete_are, expm
 
 class agent_parameters():
@@ -33,7 +32,7 @@ class agent(physics_object) :
     personal_map : line_map
 
     # Positioning
-    closest_node : node
+    current_node : node
     target_node : node 
     UNvisited_nodes : List[node] = []
 
@@ -64,7 +63,12 @@ class agent(physics_object) :
         self.current_node, _ = global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
         self.personal_map.add_node(self.current_node)
         for idx in self.current_node.connectivity:
-            self.UNvisited_nodes.append(self.global_map.nodes[idx])
+            neighbor: node = self.global_map.nodes[idx]
+            self.UNvisited_nodes.append(neighbor)
+            self.personal_map.add_node(neighbor)
+            self.personal_map.add_connection(self.current_node.node_idx, idx)
+
+        # TODO: initialize target node with randomize
         self.target_node = self.find_best_target_node()
         
         # LTI Model
@@ -96,6 +100,7 @@ class agent(physics_object) :
         """
         Graphsearch for the node that has the smallest sum of distance to current node and all agent scores divided by the distnace form this agent to them
         """
+        # TODO: actually implement this. Might need to be outside of update tho for sync reasons
         return self.UNvisited_nodes[0]
 
     def update(self, force : NDArray = np.zeros((2,1))):
@@ -105,16 +110,17 @@ class agent(physics_object) :
         last_node = self.current_node
         closest_node, distance = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
 
-        if distance <= agent_parameters.minimum_hallway_width:
+        if distance <= agent_parameters.minimum_hallway_width and closest_node != last_node:
             self.current_node = closest_node
             print(f"agent {self} has reached a new node {last_node} -> {self.current_node}")
             if self.current_node in self.UNvisited_nodes:
                 self.UNvisited_nodes.remove(self.current_node)
-                self.personal_map.add_node(self.current_node)
-                self.personal_map.add_connection(last_node.node_idx, self.current_node.node_idx)
                 for idx in self.current_node.connectivity:
-                    if self.global_map.nodes[idx] not in self.personal_map.nodes:
-                        self.UNvisited_nodes.insert(0,self.global_map.nodes[idx])
+                    neighbor = self.global_map.nodes[idx]
+                    if neighbor not in self.personal_map.nodes:
+                        self.UNvisited_nodes.insert(0,neighbor)
+                        self.personal_map.add_node(neighbor)
+                        self.personal_map.add_connection(self.current_node.node_idx, neighbor.node_idx)
             elif self.current_node in self.personal_map.nodes:
                 pass
             else:
@@ -126,8 +132,13 @@ class agent(physics_object) :
                 print(f"Agent {self.name} has reached the target node {self.current_node}, now targetting {self.target_node}")
 
     def find_first_intermediate_target(self) -> node:
-        return self.global_map.nodes[self.personal_map.astar(self.current_node.node_idx, self.target_node.node_idx)[0]] # Can cause error if no path is found (empty list returned)
+        path = self.personal_map.astar(self.current_node.node_idx, self.target_node.node_idx)
+        if len(path) == 1:
+            return self.global_map.nodes[path[0]]
+        # assert next_node_idx in self.current_node.connectivity, f"Found intermediate Target with idx {next_node_idx}, for current idx {self.current_node.node_idx} with connectivity {self.current_node.connectivity}"
+        return self.global_map.nodes[path[1]] # Can cause error if no path is found (empty list returned)
                 
+    """
     def get_all_line_segments(self) -> List[Tuple[Tuple[float, float],Tuple[float, float]]]:
         all_connections = self.personal_map.give_all_connections() #WARKING trying without self.UNvisited because it might be superfluous
         line_segments: List[Tuple[Tuple[float, float],Tuple[float, float]]] = []
@@ -136,7 +147,8 @@ class agent(physics_object) :
             node_b = self.global_map.nodes[idx_b]
             line_segments.append(((node_a.x, node_a.y), (node_b.x, node_b.y)))
         return line_segments
-
+    """
+    
     def find_input(self, reference: NDArray = np.zeros((2,)), verbose: bool = False) -> NDArray:
         N = self.max_calc_steps
         x = opt.Variable((N+1,4), name= "state")
@@ -155,6 +167,7 @@ class agent(physics_object) :
         constraints.extend([opt.norm2(u[i]) <= agent_parameters.input_actuation_limit for i in range (N)])
 
         # Constraint to be certain distance from current line segment
+
         for i in range(N+1):
             pos = x[i, :2]  # agent position
             t = opt.Variable(name= f"Line variable")
