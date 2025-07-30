@@ -12,7 +12,7 @@ class agent_parameters():
     horizon_length: int = 10
     state_weight: float = 1e1
     input_weight: float = 1e0
-    input_actuation_limit: float = 1e1
+    input_actuation_limit: float = 5e0
 
     # Default Values
     default_name: str = "Unnamed Agent"
@@ -54,8 +54,8 @@ class agent(physics_object) :
         self.score = 0.0
 
         # Vision
-        self.global_map = global_map
         self.personal_map = line_map()
+        self.global_map = global_map
 
         # Positioning
         self.W_p_COM = np.vstack([position.reshape((2,1)), np.zeros((2,1))])
@@ -63,7 +63,6 @@ class agent(physics_object) :
         self.personal_map.add_node(self.closest_node)
         for idx in self.closest_node.connectivity:
             self.UNvisited_nodes.append(self.global_map.nodes[idx])
-        print(f"to be removed: {self.UNvisited_nodes}")
         self.target_node = self.find_best_target_node()
         
         # LTI Model
@@ -108,11 +107,17 @@ class agent(physics_object) :
         if last_node == self.closest_node:
             pass
         else:
+            # print(f"agent {self} has reached a new node {last_node} -> {self.closest_node}")
             if self.closest_node in self.UNvisited_nodes:
+                # print(f"the node has not been descovered yet! {self.closest_node} in {[item.__str__() for item in self.UNvisited_nodes]}\n{self.closest_node} NOT in {[item.__str__() for item in self.personal_map.nodes]}")
                 self.UNvisited_nodes.remove(self.closest_node)
+                # print(f"node has been removed -> {self.closest_node} NOT in {[item.__str__() for item in self.UNvisited_nodes]}")
+                self.personal_map.add_node(self.closest_node)
+                # print(f"{self.closest_node} now in {[item.__str__() for item in self.personal_map.nodes]}")
                 for idx in self.closest_node.connectivity:
                     if self.global_map.nodes[idx] not in self.personal_map.nodes:
                         self.UNvisited_nodes.insert(0,self.global_map.nodes[idx])
+                # print(f"Confirm: none of {[item for item in self.closest_node.connectivity]} that are in {[item.__str__() for item in self.UNvisited_nodes]} are also in {[item.__str__() for item in self.personal_map.nodes]}")
             elif self.closest_node in self.personal_map.nodes:
                 pass
             else:

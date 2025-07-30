@@ -36,7 +36,7 @@ def run (num_agents : int, max_time : float, map : line_map):
     while(step <= max_time_steps):
         for i, agents in enumerate(agents_list):
             agents.update(agents.find_input(agents.target_node.to_numpy(), verbose=False))
-            print(agents)
+            #print(agents)
             save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
 
         #map.print_map_and_agents([agent_i.W_p_COM for agent_i in agents_list])
@@ -62,6 +62,7 @@ if __name__ == "__main__":
         case "loss":
             simulated_map = loss_map()
             #simulated_map.print_map()
+            print([item for item in simulated_map.connections])
         case _:
             print(f"Not Found: You entered {args.map}")
             simulated_map = loss_map()
