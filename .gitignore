@@ -9,3 +9,9 @@
 
 # Ignore Mac system files
 .DS_Store
+
+# Ignore Saves
+/np_saves/
+
+# Ignore local data
+__pycache__*

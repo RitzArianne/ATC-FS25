@@ -6,6 +6,8 @@ from physics import physics_object, constants
 import cvxpy as opt
 from scipy.linalg import solve_discrete_are, expm
 
+from random import random
+
 class agent_parameters():
 
     # Solving Parameters
@@ -13,7 +15,7 @@ class agent_parameters():
     state_weight: float = 1e1
     input_weight: float = 1e0
     input_actuation_limit: float = 5e0
-    minimum_hallway_width: float = 0.2
+    minimum_hallway_width: float = 0.1
 
     # Default Values
     default_name: str = "Unnamed Agent"
@@ -69,7 +71,7 @@ class agent(physics_object) :
             self.personal_map.add_connection(self.current_node.node_idx, idx)
 
         # TODO: initialize target node with randomize
-        self.target_node = self.find_best_target_node()
+        self.target_node = self.UNvisited_nodes[round(random()*4)]
         
         # LTI Model
         A_c = np.block([[np.zeros((2,2)),np.eye(2)],[K/mass,D/mass]])
