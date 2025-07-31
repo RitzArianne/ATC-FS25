@@ -19,10 +19,11 @@ class default_vals: # Intended for Parser
     draw_trajectories : bool = True
 
 def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
-    
+
     max_time_steps = int(max_time/constants.dt)
     save_data = np.empty((num_agents,max_time_steps + 1,4))
 
+    # Initialize Agents
     agents_list : List[agent] = []
     for i in range(num_agents):
         agents_list.append(agent(map, np.array([0,0])))
@@ -31,13 +32,14 @@ def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
 
     step : int = 1
     while(step <= max_time_steps):
+        # Agent Communication
         adverts: List[Tuple[float, Tuple[float, float]]] = []
         for agents in agents_list:
             adverts.append(agents.advertise())
-
+        #  print(f"all adverts are: {adverts}")
         for i, agents in enumerate(agents_list):
             try: 
-                agents.update(agents.find_input(agents.find_first_intermediate_target().to_numpy(), print_solver=verbose))
+                agents.update(agents.find_input(agents.find_first_intermediate_target().to_numpy(), print_solver=verbose), adverts=adverts[:i] + adverts[i+1:])
                 save_data[i, step, :] = np.resize(agents.W_p_COM,(4,))
             except Exception as e:
                 print(f"Agent BEFORE error {agents}")
@@ -54,7 +56,7 @@ def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
                 print(agents.A, agents.B)
                 raise AssertionError(f"ran into {e}")
 
-        #map.print_map_and_agents([agent_i.W_p_COM for agent_i in agents_list])
+        # map.print_map_and_agents([agent_i.W_p_COM for agent_i in agents_list])
 
         #input(f"Press button to step forward, current time {time}")
         step += 1

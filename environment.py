@@ -97,7 +97,7 @@ class line_map () :
             plt.plot([node_1.x, node_2.x], [node_1.y, node_2.y], c='blue')
 
         for idx, pos_i in enumerate(agent_list):
-            plt.plot(pos_i[0], pos_i[0], "H", c = 'green', label=f"Agent: {idx}")
+            plt.plot(pos_i[0], pos_i[1], "H", c = 'green', label=f"Agent: {idx}")
     
         plt.xlabel('X')
         plt.ylabel('Y')
@@ -105,7 +105,7 @@ class line_map () :
         plt.legend()
         plt.grid(True)
         plt.show()
-
+    """
     @staticmethod
     def find_uniques(conn_list: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         unique_connections = set()
@@ -122,12 +122,12 @@ class line_map () :
                 all_connections.append(tuple([nodes.node_idx,neighbor_idx]))
         unique_connections = self.find_uniques(all_connections)
         return unique_connections
-    
+    """
     def find_global_node_idx(self, idx: int) -> node:
         for n in self.nodes:
             if n.node_idx == idx:
                 return n
-        # print("Warning: Function was asked for nonexistent node. Likely a neighbor of an UNvisited node (allowed but not targettable)")
+        print("Warning: Function was asked for nonexistent node. Likely a neighbor of an UNvisited node (allowed but not targettable)")
 
     def astar(self, start_idx: int, goal_idx: int) -> List[int]:
         def heuristic(n1: node, n2: node) -> float:

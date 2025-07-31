@@ -24,7 +24,7 @@ class agent_parameters():
     default_name: str = "Unnamed Agent"
     default_mass: float= 1
     default_diameter: float = 0.0
-    default_path_length_weight: float = 0.0
+    default_path_length_weight: float = 1.0
     default_advert_weight: float = 1.0
 
 class agent(physics_object) :
@@ -41,7 +41,7 @@ class agent(physics_object) :
     # Positioning
     current_node : node
     target_node : node 
-    UNvisited_nodes : List[node] = []
+    UNvisited_nodes : List[node]
 
     def __init__ (
             self, 
@@ -69,14 +69,16 @@ class agent(physics_object) :
         self.W_p_COM = np.vstack([position.reshape((2,1)), np.zeros((2,1))])
         self.current_node, _ = global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
         self.personal_map.add_node(self.current_node)
+        self.UNvisited_nodes = []
         for idx in self.current_node.connectivity:
             neighbor: node = self.global_map.nodes[idx]
             self.UNvisited_nodes.append(neighbor)
             self.personal_map.add_node(neighbor)
             self.personal_map.add_connection(self.current_node.node_idx, idx)
 
-        random.seed(42)
+        # random.seed(42)
         self.target_node = self.UNvisited_nodes[round(random.random()*(len(self.UNvisited_nodes)-1))]
+        # print(f"{self} has starting options {[n.node_idx for n in self.UNvisited_nodes]} and chose {self.target_node}")
         
         # LTI Model
         A_c = np.block([[np.zeros((2,2)),np.eye(2)],[-K/mass,-D/mass]])
@@ -97,12 +99,7 @@ class agent(physics_object) :
         #return f"{self.W_p_COM}"
     
     def advertise(self) -> Tuple[float, Tuple[float, float]]:
-        """
-        Give away agent infromation:
-        Score: float
-        Position: float, float
-        """
-        return self.score, (self.W_p_COM[0], self.W_p_COM[1])
+        return self.score, (float(self.W_p_COM[0]), float(self.W_p_COM[1]))
     
     def find_best_target_node(self, adverts : List[Tuple[float, Tuple[float, float]]] = [], path_length_weight: float = agent_parameters.default_path_length_weight, advert_weight: float = agent_parameters.default_advert_weight) -> node:
         """
@@ -125,6 +122,8 @@ class agent(physics_object) :
                 if score < 0:
                     return node closest to that advert, also possible
                 """
+                if score < 0:
+                    print(f"YOOOOO {score}")
             return result
         
         def length_of_path(path: List[int]) -> float:
@@ -140,16 +139,17 @@ class agent(physics_object) :
         candidates = []
 
         if path_length_weight == 0.0: # save computations for default case
-            for tie_braker, candidate in enumerate(self.UNvisited_nodes):
+            for candidate in self.UNvisited_nodes:
                 score: float = advert_weight * heuristic(self.score, candidate, adverts)
-                heapq.heappush(candidates, (score, tie_braker, candidate))    
+                heapq.heappush(candidates, (score, random.random(), candidate)) # Random is a tie braker to split up agents that go to the same direction   
         else:
-            for tie_braker, candidate in enumerate(self.UNvisited_nodes):
+            for candidate in self.UNvisited_nodes:
                 path: List[int] = self.personal_map.astar(self.current_node.node_idx, candidate.node_idx)
                 score: float = path_length_weight * length_of_path(path) + advert_weight * heuristic(self.score, candidate, adverts)
-                heapq.heappush(candidates, (score, tie_braker, candidate))
+                heapq.heappush(candidates, (score, random.random(), candidate)) # Random is a tie braker to split up agents that go to the same direction   
 
         _ , _ , best_candidate = heapq.heappop(candidates)
+        # assert best_candidate is not None, f"found None candidate when looking in {self.UNvisited_nodes}"
         return best_candidate
 
     def update(self, force : NDArray = np.zeros((2,1)), adverts: List[Tuple[float, Tuple[float, float]]]= []) -> None:
@@ -163,6 +163,7 @@ class agent(physics_object) :
             self.current_node = closest_node
             print(f"agent {self.name} has reached a new node {last_node} -> {self.current_node}")
             if self.current_node in self.UNvisited_nodes:
+                # print(f"Updating unvisited nodes from {[n.node_idx for n in self.UNvisited_nodes]}")
                 self.UNvisited_nodes.remove(self.current_node)
                 for idx in self.current_node.connectivity:
                     neighbor = self.global_map.nodes[idx]
@@ -170,6 +171,7 @@ class agent(physics_object) :
                         self.UNvisited_nodes.insert(0,neighbor)
                         self.personal_map.add_node(neighbor)
                         self.personal_map.add_connection(self.current_node.node_idx, neighbor.node_idx)
+                # print(f"to {[n.node_idx for n in self.UNvisited_nodes]}")
             elif self.current_node in self.personal_map.nodes:
                 pass
             else:
