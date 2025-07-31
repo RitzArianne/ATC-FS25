@@ -181,6 +181,7 @@ class agent(physics_object) :
         # print(f"Expected Trajectory:\n{x[:].value}")
         return np.array(u[0].value)
     
+    """ CVXPY DCP doesnt allow for convex >= affine, this aspect will be ignored
     def find_maximum_travel_distance(self) -> float:
         N = self.max_calc_steps
         x = opt.Variable((N+1,4), name= "state")
@@ -198,3 +199,4 @@ class agent(physics_object) :
         result = prob.solve(solver='SCS')
 
         return prob.value
+    """
