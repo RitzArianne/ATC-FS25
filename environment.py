@@ -34,8 +34,6 @@ class line_map () :
         self.connections = []
 
     def add_node(self, new_node : node) :
-        # TODO: add minimum di
-        # stance requirement
         self.nodes.append(new_node)
 
     def add_connection(self, idx_1 : int, idx_2 : int) :
@@ -129,7 +127,7 @@ class line_map () :
         for n in self.nodes:
             if n.node_idx == idx:
                 return n
-        raise ValueError(f"Node with index {idx} not found")
+        # print("Warning: Function was asked for nonexistent node. Likely a neighbor of an UNvisited node (allowed but not targettable)")
 
     def astar(self, start_idx: int, goal_idx: int) -> List[int]:
         def heuristic(n1: node, n2: node) -> float:
@@ -164,17 +162,18 @@ class line_map () :
             current_node: node = self.find_global_node_idx(current_idx)
             for neighbor_idx in current_node.connectivity:
                 neighbor = self.find_global_node_idx(neighbor_idx)
-                tentative_g = g_score[current_idx] + heuristic(current_node, neighbor)
+                if neighbor is not None:
+                    tentative_g = g_score[current_idx] + heuristic(current_node, neighbor)
 
-                if tentative_g < g_score[neighbor_idx]:
-                    came_from[neighbor_idx] = current_idx
-                    g_score[neighbor_idx] = tentative_g
-                    f_score[neighbor_idx] = tentative_g + heuristic(neighbor, goal_node)
-                    if neighbor_idx not in open_set_hash:
-                        heapq.heappush(open_set, (f_score[neighbor_idx], neighbor_idx))
-                        open_set_hash.add(neighbor_idx)
+                    if tentative_g < g_score[neighbor_idx]:
+                        came_from[neighbor_idx] = current_idx
+                        g_score[neighbor_idx] = tentative_g
+                        f_score[neighbor_idx] = tentative_g + heuristic(neighbor, goal_node)
+                        if neighbor_idx not in open_set_hash:
+                            heapq.heappush(open_set, (f_score[neighbor_idx], neighbor_idx))
+                            open_set_hash.add(neighbor_idx)
 
-        # If we get here, no path was found
+        # no path was found
         return []
 
 class loss_map(line_map):
@@ -190,7 +189,6 @@ class loss_map(line_map):
             self.add_connection(line[0], line[1])
 
         self.bounds = ((scale * 1,scale * 1), (scale *-1, scale * -1))
-
         self.update_node_number_and_connections()
 
 class maze_map(line_map):
@@ -249,10 +247,10 @@ class complex_maze_map(line_map):
             [12,15],[15,16],[16,17],[17,14],                                # Inner top loop
             [11,18],[18,19],[19,10],                                       # Left inner branch
             [0,20],[20,21],[21,22],[22,23],[23,24],[24,25],[25,20],        # Left-side loop
-            [25,26],[26,27],[27,28],[28,29],[29,30],[30,31],[31,25],       # Left nested loop
+            [25,26],[26,27],[27,28],[28,29],[29,30],[30,31],[31,26],       # Left nested loop
             [19,32],[32,33],[33,34],[34,35],[35,36],[36,37],               # Right extension
             [37,38],[38,39],[39,40],[40,41],[41,42],[42,43],[43,44],       # Bottom dead ends
-            [44,45],[45,46],[46,47],[47,48],[48,32],                       # Bottom loop reconnect
+            [44,45],[45,46],[46,47],[47,48],[48,41],[41,32],                       # Bottom loop reconnect
             [34,49]                                                        # Final exit
         ]
 
@@ -264,5 +262,3 @@ class complex_maze_map(line_map):
 
         self.bounds = ((scale * 5, scale * 6), (-scale * 4, -scale * 1))
         self.update_node_number_and_connections()
-
-    
