@@ -6,7 +6,8 @@ from physics import physics_object, constants
 import cvxpy as opt
 from scipy.linalg import solve_discrete_are, expm
 
-from random import random
+# from random 
+import random
 
 class agent_parameters():
 
@@ -44,8 +45,8 @@ class agent(physics_object) :
             position : NDArray, 
             mass : float = agent_parameters.default_mass, 
             diameter : float = agent_parameters.default_diameter, 
-            K: NDArray = np.eye(2), 
-            D: NDArray = np.zeros((2,2))
+            K: NDArray = np.zeros((2,2)), 
+            D: NDArray = np.eye(2)
             ):
         assert(mass > 0 and diameter >= 0)
 
@@ -70,13 +71,14 @@ class agent(physics_object) :
             self.personal_map.add_node(neighbor)
             self.personal_map.add_connection(self.current_node.node_idx, idx)
 
-        # TODO: initialize target node with randomize
-        self.target_node = self.UNvisited_nodes[round(random()*4)]
+        random.seed(42)
+        self.target_node = self.UNvisited_nodes[round(random.random()*(len(self.UNvisited_nodes)-1))]
         
         # LTI Model
-        A_c = np.block([[np.zeros((2,2)),np.eye(2)],[K/mass,D/mass]])
+        A_c = np.block([[np.zeros((2,2)),np.eye(2)],[-K/mass,-D/mass]])
         B_c = np.block([[np.zeros((2,2))],[np.eye(2)/mass]])
         M   = expm(np.block([[A_c,B_c], [np.zeros((2,6))]]) * constants.dt)
+        M = M.round(decimals=2) # Numerical disc, is not very accurate 
         self.A = M[:4,:4]
         self.B = M[:4,4:6]
         self.C = np.block([np.eye(2),np.zeros((2,2))])
@@ -102,19 +104,21 @@ class agent(physics_object) :
         """
         Graphsearch for the node that has the smallest sum of distance to current node and all agent scores divided by the distnace form this agent to them
         """
+        if self.current_node.name == "GOAL Node":
+            return self.current_node
         # TODO: actually implement this. Might need to be outside of update tho for sync reasons
         return self.UNvisited_nodes[0]
 
-    def update(self, force : NDArray = np.zeros((2,1))):
+    def update(self, force : NDArray = np.zeros((2,1))) -> None:
         self.physics_step(force=force)
         assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"
 
         last_node = self.current_node
         closest_node, distance = self.global_map.find_closest_node(self.W_p_COM[0], self.W_p_COM[1])
 
-        if distance <= agent_parameters.minimum_hallway_width and closest_node != last_node:
+        if distance < agent_parameters.minimum_hallway_width and closest_node != last_node:
             self.current_node = closest_node
-            print(f"agent {self} has reached a new node {last_node} -> {self.current_node}")
+            print(f"agent {self.name} has reached a new node {last_node} -> {self.current_node}")
             if self.current_node in self.UNvisited_nodes:
                 self.UNvisited_nodes.remove(self.current_node)
                 for idx in self.current_node.connectivity:
@@ -139,19 +143,8 @@ class agent(physics_object) :
             return self.global_map.nodes[path[0]]
         # assert next_node_idx in self.current_node.connectivity, f"Found intermediate Target with idx {next_node_idx}, for current idx {self.current_node.node_idx} with connectivity {self.current_node.connectivity}"
         return self.global_map.nodes[path[1]] # Can cause error if no path is found (empty list returned)
-                
-    """
-    def get_all_line_segments(self) -> List[Tuple[Tuple[float, float],Tuple[float, float]]]:
-        all_connections = self.personal_map.give_all_connections() #WARKING trying without self.UNvisited because it might be superfluous
-        line_segments: List[Tuple[Tuple[float, float],Tuple[float, float]]] = []
-        for idx_a, idx_b in all_connections:
-            node_a = self.global_map.nodes[idx_a]
-            node_b = self.global_map.nodes[idx_b]
-            line_segments.append(((node_a.x, node_a.y), (node_b.x, node_b.y)))
-        return line_segments
-    """
     
-    def find_input(self, reference: NDArray = np.zeros((2,)), verbose: bool = False) -> NDArray:
+    def find_input(self, reference: NDArray = np.zeros((2,)), print_solver: bool = False) -> NDArray:
         N = self.max_calc_steps
         x = opt.Variable((N+1,4), name= "state")
         u = opt.Variable((N,2), name = "input")
@@ -166,6 +159,7 @@ class agent(physics_object) :
         constraints = []
         constraints.append(x[0] == self.W_p_COM.reshape((4,)))
         constraints.extend([x[i+1] == self.A @ x[i] + self.B @ u[i] for i in range(N)])
+        constraints.extend([opt.norm2(x[i,2:4]) <= agent_parameters.minimum_hallway_width * agent_parameters.horizon_length for i in range (N)])
         constraints.extend([opt.norm2(u[i]) <= agent_parameters.input_actuation_limit for i in range (N)])
 
         # Constraint to be certain distance from current line segment
@@ -177,12 +171,30 @@ class agent(physics_object) :
             xt = (1 - t) * x1 + t * x2
             yt = (1 - t) * y1 + t * y2
             proj = opt.hstack([xt, yt])
-            constraints += [opt.norm(pos - proj) <= agent_parameters.minimum_hallway_width, t >= 0, t <= 1]
+            constraints += [opt.norm(pos - proj, p = 2) <= agent_parameters.minimum_hallway_width, t >= 0, t <= 1]
 
         prob = opt.Problem(objective, constraints)
-        result = prob.solve(verbose=not verbose)
+        rresult = prob.solve(solver='SCS')
         self.score = prob.value
 
         # print(f"Found input is {u[0].value}, which should lead to {x[N].value} in the future\n")
         # print(f"Expected Trajectory:\n{x[:].value}")
         return np.array(u[0].value)
+    
+    def find_maximum_travel_distance(self) -> float:
+        N = self.max_calc_steps
+        x = opt.Variable((N+1,4), name= "state")
+        u = opt.Variable((N,2), name = "input")
+
+        objective = opt.Maximize(opt.norm2(x[N,:2]-x[0,:2]))
+
+        constraints = []
+        constraints.append(x[0] == np.zeros(4))
+        constraints.extend([x[i+1] == self.A @ x[i] + self.B @ u[i] for i in range(N)])
+        constraints.extend([opt.norm2(x[i,2:4]) <= agent_parameters.minimum_hallway_width * agent_parameters.horizon_length for i in range (N)])
+        constraints.extend([opt.norm2(u[i]) <= agent_parameters.input_actuation_limit for i in range (N)])
+
+        prob = opt.Problem(objective, constraints)
+        result = prob.solve(solver='SCS')
+
+        return prob.value
