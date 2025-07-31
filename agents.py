@@ -5,6 +5,8 @@ from numpy.typing import NDArray
 from physics import physics_object, constants
 import cvxpy as opt
 from scipy.linalg import solve_discrete_are, expm
+import heapq
+from copy import copy
 
 # from random 
 import random
@@ -22,6 +24,8 @@ class agent_parameters():
     default_name: str = "Unnamed Agent"
     default_mass: float= 1
     default_diameter: float = 0.0
+    default_path_length_weight: float = 0.0
+    default_advert_weight: float = 1.0
 
 class agent(physics_object) :
 
@@ -92,24 +96,63 @@ class agent(physics_object) :
         return f"Agent \"{self.name}\" at \nx:  {self.W_p_COM[0]}\ny:  {self.W_p_COM[1]}\ndx: {self.W_p_COM[2]}\ndy: {self.W_p_COM[3]}\n"
         #return f"{self.W_p_COM}"
     
-    def advertise(self) -> Tuple[NDArray, float]:
+    def advertise(self) -> Tuple[float, Tuple[float, float]]:
         """
         Give away agent infromation:
-        Positon:
-        Score:
+        Score: float
+        Position: float, float
         """
-        return self.W_p_COM, self.score
+        return self.score, (self.W_p_COM[0], self.W_p_COM[1])
     
-    def find_best_target_node(self, adverts : NDArray = np.zeros((0,0))) -> node:
+    def find_best_target_node(self, adverts : List[Tuple[float, Tuple[float, float]]] = [], path_length_weight: float = agent_parameters.default_path_length_weight, advert_weight: float = agent_parameters.default_advert_weight) -> node:
         """
         Graphsearch for the node that has the smallest sum of distance to current node and all agent scores divided by the distnace form this agent to them
         """
         if self.current_node.name == "GOAL Node":
             return self.current_node
-        # TODO: actually implement this. Might need to be outside of update tho for sync reasons
-        return self.UNvisited_nodes[0]
+        
+        if len(self.UNvisited_nodes) == 1:
+            return self.UNvisited_nodes[0]
 
-    def update(self, force : NDArray = np.zeros((2,1))) -> None:
+        def absolute_distance(n1: node, n2: node) -> float:
+            return np.sqrt((n1.x - n2.x)**2 + (n1.y - n2.y)**2)
+        
+        def heuristic(personal_score: float, candidate: node, adverts: List[Tuple[float, Tuple[float, float]]]) -> float:
+            result: float = 0.0
+            for score, (x, y) in adverts:
+                result += score / (personal_score * (1 + np.sqrt((candidate.x - x)**2 + (candidate.y - y)**2)))
+                """
+                if score < 0:
+                    return node closest to that advert, also possible
+                """
+            return result
+        
+        def length_of_path(path: List[int]) -> float:
+            if len(path) <= 1:
+                return 0.0
+            result: float = 0.0
+            start_id: int = path.pop(0)
+            for end_id in path:
+                result += absolute_distance(self.global_map.nodes[start_id], self.global_map.nodes[end_id])
+                start_id = end_id
+            return result
+
+        candidates = []
+
+        if path_length_weight == 0.0: # save computations for default case
+            for tie_braker, candidate in enumerate(self.UNvisited_nodes):
+                score: float = advert_weight * heuristic(self.score, candidate, adverts)
+                heapq.heappush(candidates, (score, tie_braker, candidate))    
+        else:
+            for tie_braker, candidate in enumerate(self.UNvisited_nodes):
+                path: List[int] = self.personal_map.astar(self.current_node.node_idx, candidate.node_idx)
+                score: float = path_length_weight * length_of_path(path) + advert_weight * heuristic(self.score, candidate, adverts)
+                heapq.heappush(candidates, (score, tie_braker, candidate))
+
+        _ , _ , best_candidate = heapq.heappop(candidates)
+        return best_candidate
+
+    def update(self, force : NDArray = np.zeros((2,1)), adverts: List[Tuple[float, Tuple[float, float]]]= []) -> None:
         self.physics_step(force=force)
         assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"
 
@@ -134,7 +177,7 @@ class agent(physics_object) :
             
             if self.current_node == self.target_node:
                 if len(self.UNvisited_nodes) > 0:
-                    self.target_node = self.find_best_target_node()
+                    self.target_node = self.find_best_target_node(adverts= adverts)
                 print(f"Agent {self.name} has reached the target node {self.current_node}, now targetting {self.target_node}")
 
     def find_first_intermediate_target(self) -> node:

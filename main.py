@@ -8,7 +8,7 @@ from environment import loss_map, line_map, maze_map, complex_maze_map
 from agents import agent, agent_parameters
 from physics import constants
 
-class default_vals:
+class default_vals: # Intended for Parser
     # Simulation
     num_agents : int = 1
     map : str = "loss"
@@ -19,11 +19,7 @@ class default_vals:
     draw_trajectories : bool = True
 
 def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
-    """
-    TODO: define geometries
-    TODO: anyting casadi/cvxpy
-    TODO: save data to csv
-    """
+    
     max_time_steps = int(max_time/constants.dt)
     save_data = np.empty((num_agents,max_time_steps + 1,4))
 
@@ -35,6 +31,10 @@ def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
 
     step : int = 1
     while(step <= max_time_steps):
+        adverts: List[Tuple[float, Tuple[float, float]]] = []
+        for agents in agents_list:
+            adverts.append(agents.advertise())
+
         for i, agents in enumerate(agents_list):
             try: 
                 agents.update(agents.find_input(agents.find_first_intermediate_target().to_numpy(), print_solver=verbose))
@@ -66,10 +66,10 @@ def run (num_agents : int, max_time : float, map : line_map, verbose: bool):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n",   "--num_agents", type = int,     default= default_vals.num_agents,           help= "number of indipendant agents/drones/robots in the simulation")
-    #parser.add_argument("-d",  "--draw_traj",  type= bool,     default= default_vals.draw_trajectories,    help= "True: singular image with trajectories, False: video")
+    # parser.add_argument("-d",  "--draw_traj",  type= bool,     default= default_vals.draw_trajectories,    help= "True: singular image with trajectories, False: video")
     parser.add_argument("-m",   "--map",        type = str,     default=default_vals.map,                   help= "select from: loss, maze, c_maze")
     parser.add_argument("-t",   "--max_time",   type = float,   default= default_vals.max_time,             help= "set simulation end time")
-    parser.add_argument("-v",   "--verbose",    type = bool,    default= default_vals.print_solver_feedback,help= "set simulation end time")
+    parser.add_argument("-v",   "--verbose",    type = bool,    default= default_vals.print_solver_feedback,help= "print cvxpy solver for all agents and timesteps")
 
     args = parser.parse_args()
     # Map Init
