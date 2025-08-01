@@ -30,7 +30,7 @@ class physics_object ():
 
     # Feedback Law
     F : NDArray
-
+    """
     def __init__ (self, position : NDArray, mass : float = 1, diameter : float = 0, K: NDArray = np.eye(2), D: NDArray = np.zeros(2)):
         assert(mass > 0 and diameter >= 0)
         self.W_p_COM = np.block(position.reshape((2,1)), np.zeros(2,1))
@@ -41,7 +41,7 @@ class physics_object ():
         self.A = np.block([[np.zeros((2,2)),np.eye(2)],[K/mass,D/mass]])
         self.B = np.block([[np.zeros((2,2))],[np.eye(2)/mass]])
         self.C = np.block([np.eye(2),np.zeros((2,2))])
-
+    """
     def physics_step(self, force : NDArray = np.zeros((2,1))):
         """
         in-args :
