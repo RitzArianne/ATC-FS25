@@ -7,6 +7,8 @@ from environment import loss_map, line_map, maze_map, complex_maze_map
 from agents import agent
 from physics import constants
 
+import random
+
 class default_vals: # Intended for Parser
     # Simulation
     num_agents : int = 1
@@ -69,7 +71,12 @@ if __name__ == "__main__":
             print(f"Map not Found: You entered {args.map}")
             simulated_map = loss_map()
 
+    # Assign Goal Node here:
+    goal_node_idx: int = round(random.random() * (len(simulated_map.nodes) - 1))
+    simulated_map.nodes[goal_node_idx].name = "GOAL Node"
+    print(f"selected Goal Node is {simulated_map.nodes[goal_node_idx]}")
     #simulated_map.print_map()
+
     run(num_agents= args.num_agents, max_time= args.max_time, map= simulated_map)
 
     print("DONE")

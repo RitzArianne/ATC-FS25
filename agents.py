@@ -16,7 +16,7 @@ class agent_parameters():
     input_weight: float = 1e0
     input_actuation_limit: float = 5e0
     minimum_hallway_width: float = 0.1
-    goal_score_modifier: float = float('-inf')
+    goal_score_modifier: float = -1e3
 
     # Default Values
     default_name: str = "Unnamed Agent"
@@ -103,7 +103,6 @@ class agent(physics_object) :
         Graphsearch for the node that has the smallest sum of distance to current node and all agent scores divided by the distnace form this agent to them
         """
         if self.current_node.name == "GOAL Node":
-            self.score = agent_parameters.goal_score_modifier
             return self.current_node
         
         if len(self.UNvisited_nodes) == 1:
@@ -179,6 +178,11 @@ class agent(physics_object) :
                 if len(self.UNvisited_nodes) > 0:
                     self.target_node = self.find_best_target_node(adverts= adverts)
                 print(f"Agent {self.name} has reached the target node {self.current_node}, now targetting {self.target_node}")
+        
+        # Redecleared All goal parameters here fore savety
+        if self.current_node.name == "GOAL Node":
+            self.target_node == self.current_node
+            self.score = agent_parameters.goal_score_modifier
 
     def find_first_intermediate_target(self) -> node:
         path = self.personal_map.astar(self.current_node.node_idx, self.target_node.node_idx)
