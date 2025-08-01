@@ -37,7 +37,7 @@ if __name__ == "__main__":
     ani = animation.FuncAnimation(fig, update, frames=num_time_steps, interval=50, blit=True)
 
     # Save or show animation
-    ani.save("demo_animations/convergence.mp4", writer='ffmpeg')  # Optional: Save to file
+    # ani.save("demo_animations/divergence.mp4", writer='ffmpeg')  # Optional: Save to file
     plt.show()
 
     print("-- animation done --")
