@@ -15,14 +15,16 @@ if __name__ == "__main__":
     data = np.load(f"np_saves/{args.name}.npy")
     num_agents, num_time_steps, _ = data.shape
 
-    plt.figure()
-    for i in range(num_agents):
-        # Use the color map to get the color for each agent
-        plt.plot(data[i, :, 0], data[i, :, 1], color=color_map[i % len(color_map)], label=f'Agent {i}')
+    for time in range(600):
 
-    plt.xlabel('X-axis label')  # Add appropriate labels
-    plt.ylabel('Y-axis label')
-    plt.title('Agent Animation')  # Add a title
-    plt.legend()  # Show legend if needed
-    plt.show()
+        plt.figure()
+        for i in range(num_agents):
+            # Use the color map to get the color for each agent
+            plt.scatter(data[i, time, 0], data[i, time, 1], color=color_map[i % len(color_map)], label=f'Agent {i}')
+
+        plt.xlabel('X-axis label')  # Add appropriate labels
+        plt.ylabel('Y-axis label')
+        plt.title(f'Environment at time {time}')  # Add a title
+        plt.legend()  # Show legend if needed
+        plt.show()
     print("-- animation done --")

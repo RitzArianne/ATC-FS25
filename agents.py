@@ -6,9 +6,6 @@ from physics import physics_object, constants
 import cvxpy as opt
 from scipy.linalg import solve_discrete_are, expm
 import heapq
-from copy import copy
-
-# from random 
 import random
 
 class agent_parameters():
@@ -19,6 +16,7 @@ class agent_parameters():
     input_weight: float = 1e0
     input_actuation_limit: float = 5e0
     minimum_hallway_width: float = 0.1
+    goal_score_modifier: float = float('-inf')
 
     # Default Values
     default_name: str = "Unnamed Agent"
@@ -56,7 +54,7 @@ class agent(physics_object) :
 
         # General
         self.mass = mass
-        self.diameter = diameter
+        self.diameter = diameter #unused
         self.name = agent_parameters.default_name
         self.max_calc_steps = agent_parameters.horizon_length
         self.score = 0.0
@@ -84,7 +82,7 @@ class agent(physics_object) :
         A_c = np.block([[np.zeros((2,2)),np.eye(2)],[-K/mass,-D/mass]])
         B_c = np.block([[np.zeros((2,2))],[np.eye(2)/mass]])
         M   = expm(np.block([[A_c,B_c], [np.zeros((2,6))]]) * constants.dt)
-        M = M.round(decimals=2) # Numerical disc, is not very accurate 
+        M = M.round(decimals=2) # Numerical disc, is not very accurate, likely floating point errors
         self.A = M[:4,:4]
         self.B = M[:4,4:6]
         self.C = np.block([np.eye(2),np.zeros((2,2))])
@@ -96,7 +94,6 @@ class agent(physics_object) :
         
     def __str__ (self):
         return f"Agent \"{self.name}\" at \nx:  {self.W_p_COM[0]}\ny:  {self.W_p_COM[1]}\ndx: {self.W_p_COM[2]}\ndy: {self.W_p_COM[3]}\n"
-        #return f"{self.W_p_COM}"
     
     def advertise(self) -> Tuple[float, Tuple[float, float]]:
         return self.score, (float(self.W_p_COM[0]), float(self.W_p_COM[1]))
@@ -106,6 +103,7 @@ class agent(physics_object) :
         Graphsearch for the node that has the smallest sum of distance to current node and all agent scores divided by the distnace form this agent to them
         """
         if self.current_node.name == "GOAL Node":
+            self.score = agent_parameters.goal_score_modifier
             return self.current_node
         
         if len(self.UNvisited_nodes) == 1:
@@ -122,8 +120,6 @@ class agent(physics_object) :
                 if score < 0:
                     return node closest to that advert, also possible
                 """
-                if score < 0:
-                    print(f"YOOOOO {score}")
             return result
         
         def length_of_path(path: List[int]) -> float:
@@ -153,6 +149,10 @@ class agent(physics_object) :
         return best_candidate
 
     def update(self, force : NDArray = np.zeros((2,1)), adverts: List[Tuple[float, Tuple[float, float]]]= []) -> None:
+        """
+        Main function for progressing an agent through time.
+        Handles all graph processes as well as applying the force specified.
+        """
         self.physics_step(force=force)
         assert self.W_p_COM.shape == (4,1), f"{self.W_p_COM}"
 
@@ -163,7 +163,6 @@ class agent(physics_object) :
             self.current_node = closest_node
             print(f"agent {self.name} has reached a new node {last_node} -> {self.current_node}")
             if self.current_node in self.UNvisited_nodes:
-                # print(f"Updating unvisited nodes from {[n.node_idx for n in self.UNvisited_nodes]}")
                 self.UNvisited_nodes.remove(self.current_node)
                 for idx in self.current_node.connectivity:
                     neighbor = self.global_map.nodes[idx]
@@ -171,7 +170,6 @@ class agent(physics_object) :
                         self.UNvisited_nodes.insert(0,neighbor)
                         self.personal_map.add_node(neighbor)
                         self.personal_map.add_connection(self.current_node.node_idx, neighbor.node_idx)
-                # print(f"to {[n.node_idx for n in self.UNvisited_nodes]}")
             elif self.current_node in self.personal_map.nodes:
                 pass
             else:
@@ -186,10 +184,9 @@ class agent(physics_object) :
         path = self.personal_map.astar(self.current_node.node_idx, self.target_node.node_idx)
         if len(path) == 1:
             return self.global_map.nodes[path[0]]
-        # assert next_node_idx in self.current_node.connectivity, f"Found intermediate Target with idx {next_node_idx}, for current idx {self.current_node.node_idx} with connectivity {self.current_node.connectivity}"
-        return self.global_map.nodes[path[1]] # Can cause error if no path is found (empty list returned)
+        return self.global_map.nodes[path[1]]
     
-    def find_input(self, reference: NDArray = np.zeros((2,)), print_solver: bool = False) -> NDArray:
+    def find_input(self, reference: NDArray = np.zeros((2,))) -> NDArray:
         N = self.max_calc_steps
         x = opt.Variable((N+1,4), name= "state")
         u = opt.Variable((N,2), name = "input")
